@@ -9,35 +9,46 @@
 import UIKit
 import Foundation
 import AVFoundation
+import SwiftSoup
 
 class resultViewController: UIViewController {
     var player: AVPlayer?
     var playerItem: AVPlayerItem?
     var playButton: UIButton?
     var webURL = ""
-    let yame="이 사진의 정확한 배경은 밝혀지지 않았지만, 아마도 파리 서쪽에 있는 차투의 리버 세인(River Seine)을 보여주고 있을 것이다. 르누아르는 1870년대에 센느강에서 많은 '공중' 보트 장면들을 그렸다. 이 예에서, 강의 푸른색에 대한 스키프의 주황색 빛깔은 보충적인 색깔의 사용을 이용한다. 파란색과 주황색은 색상 눈금의 반대편이기 때문에 병렬로 연결되면 더 강해진다.이 사진의 정확한 배경은 밝혀지지 않았지만, 아마도 파리 서쪽에 있는 차투의 리버 세인(River Seine)을 보여주고 있을 것이다. 르누아르는 1870년대에 센느강에서 많은 '공중' 보트 장면들을 그렸다. 이 예에서, 강의 푸른색에 대한 스키프의 주황색 빛깔은 보충적인 색깔의 사용을 이용한다. 파란색과 주황색은 색깔의 반대편이기 때문에, 대각선이 되면 더 강해진다."
+    var content: String?
+    var record: String?
+    var please: String?
     
     //OUTLETS
     @IBOutlet weak var imageView: UIImageView!
+    
     @IBOutlet weak var xTitle: UILabel!
     @IBOutlet weak var xYear: UILabel!
     @IBOutlet weak var xAuthor: UILabel!
-    @IBOutlet weak var xContent: UILabel!
     @IBOutlet weak var xCopyright: UILabel!
+    @IBOutlet weak var xContent: UILabel!
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
-
         
         //navigation bar 제목
         self.navigationItem.title = "ArtCloud"
         let backItem = UIBarButtonItem()
-    
         
-        //Content Parse
-        let con = parseContent()
-        //print("***********************",con)
+        //parse the content
+        guard let translate = URL(string: "http://ec2-13-209-142-168.ap-northeast-2.compute.amazonaws.com/translate.php")else{
+            print("Error: url doesn't seem to be a valid URL")
+            return
+        }
+        do{
+            let myHTMLString = try String(contentsOf: translate, encoding: .utf8)
+            print("\(myHTMLString)")
+            content = "\(myHTMLString)"
+        } catch let error{
+            print("Error: \(error)")
+        }
         
         //Parse the rest of the information
         guard let url = URL(string: "http://ec2-13-209-142-168.ap-northeast-2.compute.amazonaws.com/doNotDelete_JSON.php") else
@@ -61,26 +72,58 @@ class resultViewController: UIViewController {
                 {
                     return
                 }
-                // Parsing datas from web
-                guard let IMGURL = jsonArray[3]["IMGURL"] as? String else {return}
-                guard let Title = jsonArray[3]["Title"] as? String else {return}
-                guard let Author = jsonArray[3]["Author"] as? String else {return}
-                guard let Adate = jsonArray[3]["ADate"] as? String else {return}
-                self.webURL = (jsonArray[3]["URL"] as? String)!
-                guard let GalleryName = jsonArray[3]["GalleryName"] as? String else {return}
+                // 웹 서버에서 결과 파싱
+                guard let IMGURL = jsonArray[0]["IMGURL"] as? String else {return}
+                guard let Title = jsonArray[0]["Title"] as? String else {return}
+                guard let Author = jsonArray[0]["Author"] as? String else {return}
+                guard let Adate = jsonArray[0]["ADate"] as? String else {return}
+                self.webURL = (jsonArray[0]["URL"] as? String)!
+                guard let GalleryName = jsonArray[0]["GalleryName"] as? String else {return}
+                // 만약 결과가 NULL 이라면 'No Data' 출력
+                if(IMGURL == "" || Title == "" || Author == "" || Adate == "" || GalleryName == ""){
+                    print("NO DATA")
+                }
+    
+                else {
+                    // 사용자가 촬영한 사진이 맞는지 AlertDialog 를 통해 한번 더 검증을 받는다.
+                    let imageUrl = URL(string: IMGURL)
+                    let imgData = try Data(contentsOf: imageUrl!)
+                    
+                    var imageView = UIImageView(frame: CGRect(x:100, y:50, width: 70, height: 70))
+                    imageView.image = UIImage(data: imgData)
+                    
+                    let alertController = UIAlertController(title: "찾으신 그림인가요?", message:
+                        "\n\n\n\n", preferredStyle: UIAlertController.Style.alert)
+                    //'네'라면 결과 화면을 보여준다.
+                    alertController.addAction(UIAlertAction(title: "네", style: UIAlertAction.Style.default,handler: nil))
+                    //'아니요'라면 Google Image Search Engine으로 이동
+                    alertController.addAction(UIAlertAction(title: "아니요", style: UIAlertAction.Style.default, handler: {action in
+                        //go take picture again
+                        if let vc = UIStoryboard(name: "Main", bundle: nil).instantiateViewController(withIdentifier: "cameraView") as? CameraViewController
+                        {
+                            self.present(vc, animated: true, completion: nil)
+                        }
+                        
+                        guard let url = URL(string: "https://www.google.co.kr/imghp?hl=ko") else {return}
+                        UIApplication.shared.open(url)
+                        
+                    }))
+                    alertController.view.addSubview(imageView)
+                    
+                    self.present(alertController, animated: true, completion: nil)
+        
+                    // Assigning datas into the UI
+                    let url = URL(string: IMGURL)
+                    let data = try Data(contentsOf: url!)
             
-        
-                // Assigning datas into the UI
-                let url = URL(string: IMGURL)
-                let data = try Data(contentsOf: url!)
-        
-                DispatchQueue.main.async{
-                    self.imageView.image = UIImage(data: data)
-                    self.xTitle.text = "\(Title)"
-                    self.xAuthor.text = Author
-                    self.xYear.text = Adate
-                    self.xContent.text = self.yame
-                    self.xCopyright.text = GalleryName
+                    DispatchQueue.main.async{
+                        self.imageView.image = UIImage(data: data)
+                        self.xTitle.text = "\(Title)"
+                        self.xAuthor.text = Author
+                        self.xYear.text = Adate
+                        self.xCopyright.text = "©"+GalleryName
+                        self.xContent.text = self.content
+                    }
                 }
             } catch let parsingError
             {
@@ -89,10 +132,10 @@ class resultViewController: UIViewController {
         }
             task.resume()
     }
+    //---------------------------------------------END OF viewDidLoad()---------------------------------------------------//
     @IBAction func webHost(_ sender: UIButton) {
         open(scheme: self.webURL)
-        print("Hello World")
-    }
+    }    
     func open(scheme: String) {
         if let url = URL(string: scheme) {
             if #available(iOS 10, *) {
@@ -110,86 +153,66 @@ class resultViewController: UIViewController {
     override func viewWillAppear(_ animted: Bool){
         super.viewWillAppear(animted)
         
-        let url = URL(string: "http://ec2-13-209-142-168.ap-northeast-2.compute.amazonaws.com/TTSDir/GB/4.mp3")
-        let playerItem: AVPlayerItem = AVPlayerItem(url: url!)
-        player = AVPlayer(playerItem: playerItem)
         
-        let playerLayer = AVPlayerLayer(player: player!)
-        playerLayer.frame = CGRect(x:0, y:0, width:10, height:50)
-        self.view.layer.addSublayer(playerLayer)
-        
-        playButton = UIButton(type: UIButton.ButtonType.system) as UIButton
-        let xPostion:CGFloat = 270
-        let yPostion:CGFloat = 350
-        let buttonWidth:CGFloat = 30
-        let buttonHeight:CGFloat = 30
-        
-        playButton!.frame = CGRect(x: xPostion, y: yPostion, width: buttonWidth, height: buttonHeight)
-        let soundImage = UIImage(named: "sound.png")
-        playButton!.setImage(soundImage, for: .normal)
-       // playButton!.backgroundColor = UIColor.lightGray
-       // playButton!.setTitle("Play", for: UIControl.State.normal)
-       // playButton!.tintColor = UIColor.black
-        playButton!.addTarget(self, action: #selector(resultViewController.playSound(_:)), for: .touchUpInside)
-        
-        self.view.addSubview(playButton!)
-    }
-    
-
-    
-    //Parse Content function
-    func parseContent() -> String{
-        var con = ""
-        guard let url = URL(string: "http://ec2-13-209-142-168.ap-northeast-2.compute.amazonaws.com/please_utf.php") else
-        {
-            return "Error"
-            
+        //parse the content
+        guard let speech = URL(string: "http://ec2-13-209-142-168.ap-northeast-2.compute.amazonaws.com/execPythonSIFT.php")else{
+            print("Error: url doesn't seem to be a valid URL")
+            return
         }
-        let task = URLSession.shared.dataTask(with: url)
-        {
-            (data, response, error) in guard let dataResponse = data, error == nil else
-            {
-                print(error?.localizedDescription ?? "Response Error")
-                return
-            }
+        do{
+            let myHTMLString = try String(contentsOf: speech, encoding: .utf8)
+            record = myHTMLString
+        } catch let error{
+            print("Error: \(error)")
+        }
+        please = String(record!)
+        if(String(please![please!.startIndex]) == "9"){
+            guard let url = URL(string: "https://www.google.co.kr/imghp?hl=ko") else {return}
+            UIApplication.shared.open(url)
             
-            do
-            {
-                let jsonResponse = try JSONSerialization.jsonObject(with: dataResponse, options: [])
-                
-                guard let jsonArray = jsonResponse as? [[String: Any]] else
-                {
-                    return
-                }
-                // Parsing datas from web
-                con = (jsonArray[1]["translatedText"] as? String)!
-               // con = Content
-                
-                // Assigning datas into the UI
-//                DispatchQueue.main.async{
-//                    self.xContent.text = Content
-//                }
-            } catch let parsingError
-            {
-                print("Error", parsingError)
+            if let vc = UIStoryboard(name: "Main", bundle: nil).instantiateViewController(withIdentifier: "mainViewController") as? ViewController{
+                self.present(vc, animated: true, completion: nil)
             }
         }
-        task.resume()
-        return con
+        else{
+            let url = URL(string: "http://ec2-13-209-142-168.ap-northeast-2.compute.amazonaws.com/TTSDir/GB/"+String(please![please!.startIndex])+".mp3")
+            if(url == nil){
+                print("NO RECORD")
+            }
+            else{
+                print(url)
+                let playerItem: AVPlayerItem = AVPlayerItem(url: url!)
+                player = AVPlayer(playerItem: playerItem)
+                
+                let playerLayer = AVPlayerLayer(player: player!)
+                playerLayer.frame = CGRect(x:0, y:0, width:10, height:50)
+                self.view.layer.addSublayer(playerLayer)
+                
+                playButton = UIButton(type: UIButton.ButtonType.system) as UIButton
+                let xPostion:CGFloat = 400
+                let yPostion:CGFloat = 400
+                let buttonWidth:CGFloat = 30
+                let buttonHeight:CGFloat = 30
+                
+                playButton!.frame = CGRect(x: xPostion, y: yPostion, width: buttonWidth, height: buttonHeight)
+                let soundImage = UIImage(named: "sound.png")
+                playButton!.setImage(soundImage, for: .normal)
+                playButton!.addTarget(self, action: #selector(resultViewController.playSound(_:)), for: .touchUpInside)
+                
+                self.view.addSubview(playButton!)
+            }
+        }
     }
+    
     
     @IBAction func playSound(_ sender: Any) {
         if player?.rate == 0
         {
             player!.play()
-            //playButton!.setImage(UIImage(named: "player_control_pause_50px.png"), forState: UIControlState.Normal)
             playButton!.setTitle("Pause", for: UIControl.State.normal)
         } else {
             player!.pause()
-            //playButton!.setImage(UIImage(named: "player_control_play_50px.png"), forState: UIControlState.Normal)
             playButton!.setTitle("Play", for: UIControl.State.normal)
         }
-        
     }
-    
 }

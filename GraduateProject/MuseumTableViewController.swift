@@ -12,7 +12,7 @@ class MuseumTableViewController: UITableViewController{
     
     var museums = [Museum]()
     var tableArray = ["London", "Paris", "Spain", "Italy", "Louvre", "Guggenheim", "Vatican"]
-    var segueIdentifiers = ["BritishAR"] //추후에 Louvre, Guggenheim, Vatican Segue 추가해야함
+    var segueIdentifiers = ["BritishAR","OrangerieAR", "ItalyAR", "LouvreAR", "GuggenheimAR", "VaticanAR"]
     var sections = ["영국", "프랑스", "이탈리아", "스페인"] //추후 나누기
     
 
